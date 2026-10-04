@@ -121,7 +121,7 @@ $db->close_connection();
                         <span class="badge"><?= htmlspecialchars($r['nama_kategori'] ?? 'Umum') ?></span>
                         <h3><?= htmlspecialchars($r['nama']) ?></h3>
                         <p><?= htmlspecialchars($r['deskripsi']) ?></p>
-                        <div class="price">Rp <?= number_format((float)$r['tarif_per_jam'], 0, ',', '.') ?> / jam</div>
+                        <div class="price">Rp <?= number_format((float)($r['tarif_per_jam'] ?? $r['tarif'] ?? 0), 0, ',', '.') ?> / jam</div>
                     </div>
                 <?php endforeach; ?>
             <?php endif; ?>
