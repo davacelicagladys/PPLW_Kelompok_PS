@@ -41,7 +41,7 @@ class Ruang {
         string $deskripsi,
         ?string $foto,
         int $adminId
-    ): Respon {
+        ): Respon {
         $query = "INSERT INTO unit (nama, jumlah_unit, kategori_unit, deskripsi, foto, created_by)
                   VALUES ($1, $2, $3, $4, $5, $6)";
         return $this->db->send_query($query, [
@@ -62,7 +62,7 @@ class Ruang {
         string $deskripsi,
         ?string $foto,
         int $adminId
-    ): Respon {
+        ): Respon {
         $query = "UPDATE unit
                   SET nama = $1, jumlah_unit = $2, kategori_unit = $3, deskripsi = $4,
                       foto = COALESCE($5::varchar, foto), updated_by = $6
