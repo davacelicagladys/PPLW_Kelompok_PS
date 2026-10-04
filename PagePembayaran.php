@@ -1,52 +1,66 @@
 <?php
+session_start();
 require_once __DIR__ . '/callinglibs.php';
 
-// Variable default
-$latestBooking = null;
-$totalHarga = 300000;
-$deposit = 150000;
+// 1. CEK SESSION: Lempar ke dashboard jika tidak ada request booking yang valid
+if (!isset($_SESSION['pending_booking'])) {
+    header("Location: dashboard.php");
+    exit();
+}
 
-try {
-    $db = new DBconnection();
+$pending = $_SESSION['pending_booking'];$db = new DBconnection();
 
-    $query = "
-        SELECT rb.*, r.nama as nama_ruang, r.tarif_per_jam 
-        FROM request_booking rb 
-        JOIN ruang r ON rb.ruang_id = r.id 
-        ORDER BY rb.created_at DESC 
-        LIMIT 1
-    ";
-    $res =$db->send_query($query);$latestBooking = (!empty($res->data)) ?$res->data[0] : null;
+// 2. HANDLE BATALKAN BOOKING
+if (isset($_POST['cancel_booking'])) {
+    unset($_SESSION['pending_booking']); // Hapus data dari memori
+    header("Location: dashboard.php");
+    exit();
+}
 
-    if ($latestBooking) {
-        $durasiStr =$latestBooking['durasi'];
-        $hours = (int)substr($durasiStr, 0, 2);
-        if ($hours <= 0)$hours = 1;
+// 3. AMBIL DATA RUANGAN DARI DATABASE UNTUK HITUNG HARGA
+$ruangData = null;
+$res =$db->send_query("SELECT nama, tarif_per_jam FROM ruang WHERE id = $1", [$pending['ruang_id']]);
+if ($res->status && !empty($res->data)) {
+    $ruangData =$res->data[0];
+}
+
+$totalHarga = 0;
+$deposit = 0;
+$durasiJam = (int)$pending['durasi'];
+
+if ($ruangData) {$totalHarga = (float)$ruangData['tarif_per_jam'] *$durasiJam;
+    $deposit =$totalHarga * 0.5;
+}
+
+// 4. PROSES UPLOAD DAN INSERT KE DATABASE
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['bukti_bayar'])) {$uploadDir = __DIR__ . '/uploads/';
+    if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);$fileName = time() . '_' . basename($_FILES['bukti_bayar']['name']);$targetPath = $uploadDir .$fileName;
+    
+    if (move_uploaded_file($_FILES['bukti_bayar']['tmp_name'],$targetPath)) {
         
-        $totalHarga = (float)$latestBooking['tarif_per_jam'] *$hours;
-        $deposit =$totalHarga * 0.5;
-    }
-
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['bukti_bayar']) && $latestBooking) {$uploadDir = __DIR__ . '/uploads/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);$fileName = time() . '_' . basename($_FILES['bukti_bayar']['name']);$targetPath = $uploadDir .$fileName;
+        // CUSTOMER SUDAH UPLOAD, SEKARANG BARU KITA INSERT KE DATABASE
+        $booking = new Booking($db);$responInsert = $booking->buatRequestBooking($pending['nama_depan'], $pending['nama_belakang'],$pending['no_wa'], 
+            $pending['ruang_id'],$pending['tanggal'], $pending['jam_mulai'],$durasiJam
+        );
         
-        if (move_uploaded_file($_FILES['bukti_bayar']['tmp_name'], $targetPath)) {$updateQuery = "UPDATE request_booking SET bukti_pembayaran = $1 WHERE id = $2";
-            $db->send_query($updateQuery, [$fileName, $latestBooking['id']]);$db->close_connection();
+        if ($responInsert->status) {
+            // Pasang foto bukti pembayaran ke booking yang barusan di-insert
+            $updateQuery = "UPDATE request_booking SET bukti_pembayaran = $1 WHERE id = (SELECT id FROM request_booking ORDER BY created_at DESC LIMIT 1)";
+            $db->send_query($updateQuery, [$fileName]);
             
-            header("Location: dashboard.php");
+            // Bersihkan session
+            unset($_SESSION['pending_booking']);$db->close_connection();
+            
+            // Tampilkan pop-up sukses dan alihkan ke dashboard
+            echo "<script>
+                alert('Terima kasih, request anda akan segera dikonfirmasi oleh admin by whatsapp.');
+                window.location.href = 'dashboard.php';
+            </script>";
             exit();
         }
     }
-    $db->close_connection();
-
-} catch (Throwable $e) {
-    // Mode Preview jika Database Off
-    $latestBooking = [
-        'id' => '101',
-        'nama_ruang' => 'VIP Gaming Room 01 (Mode Preview)',
-        'durasi' => '02:00:00'
-    ];
 }
+$db->close_connection();
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -54,7 +68,6 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pembayaran Booking - Station Game</title>
-    <!-- Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -63,7 +76,6 @@ try {
         body { background: #f1f5f9; min-height: 100vh; padding: 30px 15px; color: #1e293b; }
         .wrapper { max-width: 920px; margin: 0 auto; }
         
-        /* STEPPER PROGRESS */
         .stepper { display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 25px; }
         .step { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 600; color: #94a3b8; }
         .step.active { color: #2563eb; }
@@ -73,21 +85,17 @@ try {
         .step.done .step-number { background: #16a34a; }
         .step-line { width: 40px; height: 2px; background: #cbd5e1; }
         
-        /* TIMER ALERT */
         .timer-box { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 12px 20px; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
         .timer-text { font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 8px; }
         .timer-badge { font-weight: 700; background: #dc2626; color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; }
         
-        /* MAIN CARD */
         .container-card { background: #ffffff; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); overflow: hidden; }
         .card-header { background: #0f172a; color: #ffffff; padding: 20px 28px; display: flex; justify-content: space-between; align-items: center; }
         .card-header h2 { font-size: 1.15rem; font-weight: 600; display: flex; align-items: center; gap: 10px; }
         
-        /* GRID CONTENT */
         .grid-content { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 28px; padding: 28px; }
         @media (max-width: 768px) { .grid-content { grid-template-columns: 1fr; } }
         
-        /* LEFT SIDE */
         .order-section { display: flex; flex-direction: column; gap: 16px; }
         .section-title { font-size: 0.85rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; border-bottom: 2px solid #f1f5f9; padding-bottom: 6px; }
         .detail-item { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 8px; }
@@ -98,7 +106,6 @@ try {
         .price-amount { font-size: 1.4rem; font-weight: 700; color: #dc2626; margin-top: 4px; }
         .help-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px 16px; border-radius: 8px; display: flex; align-items: center; gap: 12px; font-size: 0.85rem; color: #166534; margin-top: auto; }
         
-        /* RIGHT SIDE */
         .payment-section { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; }
         .qris-card { background: #ffffff; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 16px; width: 100%; max-width: 240px; display: flex; flex-direction: column; align-items: center; position: relative; }
         .qris-badge { position: absolute; top: -10px; background: #2563eb; color: #fff; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; }
@@ -116,7 +123,6 @@ try {
 </head>
 <body>
     <div class="wrapper">
-        <!-- STEPPER PROGRESS -->
         <div class="stepper">
             <div class="step done">
                 <div class="step-number"><i class="fa-solid fa-check"></i></div>
@@ -134,7 +140,6 @@ try {
             </div>
         </div>
 
-        <!-- TIMER ALERT -->
         <div class="timer-box">
             <div class="timer-text">
                 <i class="fa-regular fa-clock"></i>
@@ -143,25 +148,23 @@ try {
             <div class="timer-badge" id="countdown">15:00</div>
         </div>
 
-        <!-- MAIN CARD -->
         <div class="container-card">
             <div class="card-header">
                 <h2><i class="fa-solid fa-receipt"></i> Detail Pembayaran</h2>
-                <span style="font-size: 0.85rem; opacity: 0.8;">ID Booking: #<?= htmlspecialchars($latestBooking['id'] ?? '101') ?></span>
+                <span style="font-size: 0.85rem; opacity: 0.8;">ID Booking: #PENDING</span>
             </div>
 
             <div class="grid-content">
-                <!-- LEFT SIDE: RINCIAN ORDER -->
                 <div class="order-section">
                     <div class="section-title">Rincian Ruangan</div>
                     
                     <div class="detail-item">
                         <span class="detail-label">Ruangan</span>
-                        <span class="detail-value"><?= htmlspecialchars($latestBooking['nama_ruang'] ?? 'VIP Gaming Room') ?></span>
+                        <span class="detail-value"><?= htmlspecialchars($ruangData['nama'] ?? 'VIP Gaming Room') ?></span>
                     </div>
                     <div class="detail-item">
                         <span class="detail-label">Durasi Sesi</span>
-                        <span class="detail-value"><?= htmlspecialchars($latestBooking['durasi'] ?? '02:00:00') ?></span>
+                        <span class="detail-value"><?= htmlspecialchars($durasiJam) ?> Jam</span>
                     </div>
                     <div class="detail-item">
                         <span class="detail-label">Total Biaya Sesi</span>
@@ -179,7 +182,6 @@ try {
                     </div>
                 </div>
 
-                <!-- RIGHT SIDE: METODE PEMBAYARAN & FORM UPLOAD -->
                 <div class="payment-section">
                     <div class="qris-card">
                         <div class="qris-badge">Scan QRIS</div>
@@ -197,6 +199,13 @@ try {
                         
                         <button type="submit" class="btn-submit" style="margin-top: 14px;">
                             <i class="fa-solid fa-paper-plane"></i> Kirim Bukti Pembayaran
+                        </button>
+                    </form>
+
+                    <!-- TOMBOL BATALKAN BOOKING -->
+                    <form action="PagePembayaran.php" method="POST" class="upload-area" style="margin-top: -5px;">
+                        <button type="submit" name="cancel_booking" class="btn-submit" style="background: #ef4444; color: white;">
+                            <i class="fa-solid fa-xmark"></i> Batalkan Booking Request
                         </button>
                     </form>
                 </div>

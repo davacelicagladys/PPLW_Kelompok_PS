@@ -48,25 +48,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'buat_
     } elseif ($durasi_booking < 1 || $durasi_booking > 12) {
         $error = 'Durasi harus antara 1 sampai 12 jam.';
     } else {
-        try {
-            $db = new DBconnection();
-            $booking = new Booking($db);
-            
-            $respon = $booking->buatRequestBooking(
-                $nama_depan, $nama_belakang, $no_wa, $ruang_id, 
-                $tanggal_booking, $jam_booking, $durasi_booking
-            );
-
-            if ($respon->status) {
-                header("Location: PagePembayaran.php");
-                exit();
-            } else {
-                $error = 'Request booking gagal dibuat: ' . $respon->message;
-            }
-            $db->close_connection();
-        } catch (Throwable $e) {
-            $error = 'Terjadi kesalahan saat membuat booking: ' . $e->getMessage();
-        }
+        // Simpan data di session sementara, JANGAN masuk ke database dulu
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        $_SESSION['pending_booking'] = [
+            'nama_depan' => $nama_depan,
+            'nama_belakang' => $nama_belakang,
+            'no_wa' => $no_wa,
+            'ruang_id' => $ruang_id,
+            'tanggal' => $tanggal_booking,
+            'jam_mulai' => $jam_booking,
+            'durasi' => $durasi_booking
+        ];
+        header("Location: PagePembayaran.php");
+        exit();
     }
 }
 
@@ -240,6 +234,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['tanggal']) && isset($_G
                     <?php foreach ($ruangTersedia as $ruangData): ?>
                         <?php $totalHarga = (float) $ruangData['tarif_per_jam'] * $durasi; ?>
                         <div class="room-card">
+                            <?php if(!empty($ruangData['foto'])): ?>
+                                <img src="uploads/<?= htmlspecialchars($ruangData['foto']) ?>" style="width:100%; height:140px; object-fit:cover; border-radius:8px; margin-bottom:15px;">
+                            <?php endif; ?>
                             <span class="badge"><?= htmlspecialchars($ruangData['nama_kategori'] ?? 'Umum') ?></span>
                             <h5 class="room-title"><?= htmlspecialchars($ruangData['nama']) ?></h5>
                             <p class="room-desc"><?= htmlspecialchars($ruangData['deskripsi']) ?></p>
