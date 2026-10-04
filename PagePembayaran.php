@@ -222,7 +222,7 @@ $db->close_connection();
             }
         }
 
-        let time = 15 * 60;
+        let time = 7 * 60;
         const countdownEl = document.getElementById('countdown');
         setInterval(() => {
             if (time <= 0) {
