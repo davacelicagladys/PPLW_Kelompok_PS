@@ -98,7 +98,7 @@ $igLink     = 'https://instagram.com/' . $igUsername;
             .nav-menu { gap: 20px; }
         }
 
-        /* Hero Section Gradasi Modern */
+        /* Hero Section */
         .hero {
             background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
             padding: 70px 20px 90px;
@@ -122,7 +122,7 @@ $igLink     = 'https://instagram.com/' . $igUsername;
             margin-right: auto;
         }
         
-        /* Tombol Booking dengan Gradasi */
+        /* Tombol Booking */
         .btn-booking {
             background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
             color: white;
@@ -143,7 +143,7 @@ $igLink     = 'https://instagram.com/' . $igUsername;
 
         .container { max-width: 1200px; margin: 50px auto; padding: 0 20px; }
         
-        /* Section Title dengan Teks Gradasi */
+        /* Section Title */
         .section-title {
             text-align: center;
             margin-bottom: 40px;
@@ -157,7 +157,7 @@ $igLink     = 'https://instagram.com/' . $igUsername;
         /* Grid System */
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; }
 
-        /* Card Putih / Light Style */
+        /* Card Putih */
         .card {
             background: #ffffff;
             border-radius: 16px;
@@ -222,7 +222,7 @@ $igLink     = 'https://instagram.com/' . $igUsername;
             padding-top: 10px;
         }
 
-        /* Scroll Horizontal Unit */
+        /* Scroll Samping Unit */
         .unit-scroll-container {
             display: flex;
             gap: 25px;
@@ -236,7 +236,7 @@ $igLink     = 'https://instagram.com/' . $igUsername;
             flex-shrink: 0;
         }
 
-        /* Features Section */
+        /* Fitur Section */
         .features-section { margin-top: 10px; margin-bottom: 80px; }
         .feature-card {
             background: #ffffff;
